@@ -1,4 +1,4 @@
 require 'bundler/setup'
-require_relative 'lib/sinatra_profile_manager'
+require_relative 'sinatra_profile_manager'
 
 run SinatraProfileManager
