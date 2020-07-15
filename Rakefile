@@ -1,4 +1,4 @@
-desc("Run SinatraProfileManager on port 4567 in TESTING environment")
+desc("Run SinatraProfileManager on port 4567 in TEST environment")
 task(:run_testing) do
   system("APP_ENV=test bundle exec rackup -p 4567 config.ru")
 end
