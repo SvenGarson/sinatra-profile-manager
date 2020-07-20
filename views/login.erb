@@ -8,6 +8,34 @@
   </head>
 
   <body>
+    <form action="/login" method="post">
+
+      <label for="field_username">Username</label><br>
+      <input type="text" name="login_username" placeholder="John"><br>
+
+      <label for="field_password">Password</label><br>
+      <input type="text" name="login_password" placeholder="Doe"><br><br>
+
+      <input type="submit" value="Login">
+    </form> 
+
+    <br>
+
+    <form method="post" action="/logout">
+      <input type="hidden">
+      <button type="submit" name="logout" value="true">
+        Logout
+      </button>
+    </form>
+
+    <br>
+
+    <form method="post" action="/unregister">
+      <input type="hidden">
+      <button type="submit" name="unregister" value="true">
+        Unregister
+      </button>
+    </form>
   </body>
 
 </html>

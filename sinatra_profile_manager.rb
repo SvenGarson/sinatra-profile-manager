@@ -1,56 +1,87 @@
 require 'sinatra'
 require "sinatra/reloader" if development?
 require 'tilt'
+require_relative 'lib/profile_manager'
+
+Peep = 'Show'
 
 class SinatraProfileManager < Sinatra::Base
 
   configure do
+    # Configure Sinatra
     enable(:sessions)
+
+    # Configure Application
+    set(:profile_manager, ProfileManager::Application.new)
+    set(:some_user, ProfileManager::User.new('Markus', 'QWERTZ'))
+  end
+
+  helpers do
+    def profile_manager
+      settings.profile_manager
+    end
+
+    def cookie_session_id
+      session[ProfileManager::SESSION_ID_KEY]
+    end
+
   end
 
   before do
-=begin
-    ???
-=end
+    # ???
   end
 
   after do
-=begin
-    ???
-=end
+    # ???
   end
 
   get '/' do
-    erb(:index)
-=begin
-    session_id = session[:session_id]
-    if app.session_id_logged_in?(session_id)
+    if profile_manager.session_id_logged_in?(cookie_session_id)
       erb(:profile)
     else
       erb(:login)
     end
-=end
   end
 
   get '/profile/:username' do
     erb(:profile)
-=begin
-    session_id = session[:session_id]
-    if app.session_id_logged_in?(session_id)
-      user_info = app.user_info(session_id)
+
+    # ??? check that routes that get here include the username in the URL
+    if profile_manager.session_id_logged_in?(cookie_session_id)
+      user_info = app.session_user_info(cookie_session_id)
       @username = user_info.username
       @registration_date = user_info.registration_date
-      @logged_in_until = user_info.logged_in_until
 
       erb(:profile)
     else
       erb(:index)
     end
-=end
   end
 
   get '/login' do
-    erb(:login)
+    
+    if profile_manager.session_id_logged_in?(cookie_session_id)
+      erb(:profile)
+    else
+      # login procedure
+      erb(:login)
+    end
+  end
+
+  post '/login' do
+    # check if all login parameters given
+    login_username = params['field_username']
+    login_password = params['field_password']
+    if login_username.nil? || login_password.nil?
+      redirect('/login')
+    end
+
+    if profile_manager.session_id_logged_in?(cookie_session_id)
+      erb(:profile)
+    else
+      # login procedure
+      
+    end
 =begin
     session_id = session[:session_id]
     if app.session_id_logged_in?(session_id)
@@ -99,15 +130,11 @@ class SinatraProfileManager < Sinatra::Base
   end
 
   get '/register' do
-    erb(:register)
-=begin
-    session_id = session[:session_id]
-    if app.session_id_logged_in?(session_id)
+    if app.session_id_logged_in?(cookie_session_id)
       erb(:profile)
     else
       erb(:register)
     end
-=end
   end
 
   post '/unregister' do
