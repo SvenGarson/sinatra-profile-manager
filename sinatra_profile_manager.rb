@@ -3,9 +3,10 @@ require "sinatra/reloader" if development?
 require 'tilt'
 require_relative 'lib/profile_manager'
 
-Peep = 'Show'
-
 class SinatraProfileManager < Sinatra::Base
+
+  KEY_ERROR_MESSAGE = :ERROR_MESSAGE
+  KEY_SUCCESS_MESSAGE = :SUCCESS_MESSAGE
 
   configure do
     # Configure Sinatra
@@ -13,7 +14,6 @@ class SinatraProfileManager < Sinatra::Base
 
     # Configure Application
     set(:profile_manager, ProfileManager::Application.new)
-    set(:some_user, ProfileManager::User.new('Markus', 'QWERTZ'))
   end
 
   helpers do
@@ -22,66 +22,89 @@ class SinatraProfileManager < Sinatra::Base
     end
 
     def cookie_session_id
-      session[ProfileManager::SESSION_ID_KEY]
+      session[ProfileManager::KEY_SESSION_ID]
     end
 
+    def session_user_info
+      profile_manager.session_user_info(cookie_session_id)
+    end
+
+    def profile_requirements_met?
+      params.has_key?(:username)
+    end
+
+    def register_requirements_met?
+      params.has_key?(@key_register_username) &&
+      params.has_key?(@key_register_password)
+    end
+
+    def set_session_error_message(error_message)
+      session[KEY_ERROR_MESSAGE] = error_message
+    end
+
+    def session_error_message_exist?
+      session.has_key?(KEY_ERROR_MESSAGE)
+    end
+
+    def pop_session_error_message
+      session.delete(KEY_ERROR_MESSAGE)
+    end
+
+    def set_session_success_message(success_message)
+      session[KEY_SUCCESS_MESSAGE] = success_message
+    end
+
+    def session_success_message_exist?
+      session.has_key?(KEY_SUCCESS_MESSAGE)
+    end
+
+    def pop_session_success_message
+      session.delete(KEY_SUCCESS_MESSAGE)
+    end
   end
 
   before do
-    # ???
-  end
-
-  after do
-    # ???
+    # define instance variables for use in ERB templates
+    @key_login_username = ProfileManager::KEY_ERB_LOGIN_USERNAME
+    @key_login_password = ProfileManager::KEY_ERB_LOGIN_PASSWORD
+    @key_register_username = ProfileManager::KEY_ERB_REGISTER_USERNAME
+    @key_register_password = ProfileManager::KEY_ERB_REGISTER_PASSWORD
   end
 
   get '/' do
     if profile_manager.session_id_logged_in?(cookie_session_id)
-      erb(:profile)
+      username = session_user_info.username
+      redirect("/profile/#{username}")
     else
-      erb(:login)
+      redirect('/login')
     end
   end
 
   get '/profile/:username' do
-    erb(:profile)
+    redirect('/login') unless profile_requirements_met?
 
-    # ??? check that routes that get here include the username in the URL
     if profile_manager.session_id_logged_in?(cookie_session_id)
-      user_info = app.session_user_info(cookie_session_id)
-      @username = user_info.username
-      @registration_date = user_info.registration_date
+      @user_info = session_user_info
 
       erb(:profile)
     else
-      erb(:index)
+      redirect('/login')
     end
   end
 
   get '/login' do
     
     if profile_manager.session_id_logged_in?(cookie_session_id)
-      erb(:profile)
+      username = session_user_info.username
+
+      redirect("/profile/#{username}")
     else
-      # login procedure
       erb(:login)
     end
   end
 
   post '/login' do
-    # check if all login parameters given
-    login_username = params['field_username']
-    login_password = params['field_password']
-    if login_username.nil? || login_password.nil?
-      redirect('/login')
-    end
-
-    if profile_manager.session_id_logged_in?(cookie_session_id)
-      erb(:profile)
-    else
-      # login procedure
-      
-    end
+    erb(:login)
 =begin
     session_id = session[:session_id]
     if app.session_id_logged_in?(session_id)
@@ -130,10 +153,37 @@ class SinatraProfileManager < Sinatra::Base
   end
 
   get '/register' do
-    if app.session_id_logged_in?(cookie_session_id)
-      erb(:profile)
+    if profile_manager.session_id_logged_in?(cookie_session_id)
+      username = session_user_info.username
+
+      redirect("/profile/#{username}")
     else
       erb(:register)
+    end
+  end
+
+  post '/register' do
+    redirect('/register') unless register_requirements_met?
+
+    username = params[@key_register_username]
+    password = params[@key_register_password]
+
+    if !profile_manager.username_valid?(username)
+      set_session_error_message(profile_manager.latest_error_string)
+      erb(:register)
+    elsif !profile_manager.password_valid?(password)
+      set_session_error_message(profile_manager.latest_error_string)
+      erb(:register)
+    else
+      registration_successful = profile_manager.register_new_user(username, password)
+
+      if registration_successful
+        set_session_success_message("Account with username '#{username}' has been created.")
+        redirect('/login')
+      else
+        set_session_error_message(profile_manager.latest_error_string)
+        erb(:register)
+      end
     end
   end
 
@@ -150,44 +200,13 @@ class SinatraProfileManager < Sinatra::Base
 
       if(unregister_success)      
         set_session_success_message(Your account has been deleted!)
-        erb(:index)
+        redirect('/')
       else
         set_session_error_message(There was a problem deleting your account. Please login in and try again!)
         erb(:login)
     else
       erb(:profile)
     end
-=end
-  end
-
-  post '/register' do
-    erb(:register)
-=begin
-    username = ...
-    hashed_password = ...
-    original_password_length = ...
-
-    if !username_valid?user(username)
-      set_session_error_message(username_error(username))
-      erb(:register)
-    elsif !password_valid?(password)
-      set_session_error_message(password_error?(original_password_length))
-      @username_override = username
-      erb(:register)
-    else
-      # username and password valid
-      registration_successful = app.register_new_user(username, hashed_password) # set set registration time
-
-      if registration_successful
-        set_session_success_message('Account created yuhuuu ...')
-        erb(:login)
-      else
-        set_session_error(app.lastest_error_string())
-        erb(:register)
-      end
-    end
-
-
 =end
   end
 

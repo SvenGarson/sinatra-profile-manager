@@ -1,0 +1,20 @@
+<!doctype html>
+
+<html lang="en">
+
+  <head>
+    <meta charset="utf-8">
+    <title>Sinatra Profile Manager</title>
+  </head>
+
+  <% if session_error_message_exist? %>
+    <%= "<p style=\"color: red;\">#{pop_session_error_message}</p>" %>
+  <% end %>
+  
+  <% if session_success_message_exist? %>
+    <%= "<p style=\"color: green;\">#{pop_session_success_message}</p>" %>
+  <% end %>
+  
+  <%= yield %>
+
+</html>

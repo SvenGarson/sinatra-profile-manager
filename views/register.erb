@@ -1,13 +1,14 @@
-<!doctype html>
+<form action="/register" method="post">
 
-<html lang="en">
+  <p>Username:</p>
+  <input type="text" name="<%= @key_register_username %>" placeholder="Newbie"><br>
 
-  <head>
-    <meta charset="utf-8">
-    <title>Register</title>
-  </head>
+  <p>Password:</p>
+  <input type="text" name="<%= @key_register_password %>" placeholder="Doe"><br><br>
 
-  <body>
-  </body>
+  <input type="submit" value="Register">
+</form> 
 
-</html>
+<br>
+
+<a href="/login">Login</a>
