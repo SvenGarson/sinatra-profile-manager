@@ -5,10 +5,12 @@ module ProfileManager
   KEY_ERB_LOGIN_PASSWORD = 'field_login_password'
   KEY_ERB_REGISTER_PASSWORD = 'field_register_password'
   KEY_ERB_REGISTER_USERNAME = 'field_register_username'
-  KEY_SESSION_ID = :SESSION_ID
+  KEY_ERB_CONFIRM = 'confirmation_choice'
+  KEY_SESSION_ID = :SESSION_IDd
 
   # timing
   TIME_EXPIRED = Time.at(0)
+  MAX_LOGIN_TIME_IN_SECONDS = 60 * 5
 
   class User
     def initialize(p_username, p_password)
@@ -38,6 +40,16 @@ module ProfileManager
       UserInfo.new(self)
     end
 
+    def to_s
+      # ??? !!! REMOVE
+      info = ''
+      info << "\t\#username:    #{username}\n"
+      info << "\t\#password:    #{password}\n"
+      info << "\t\#registered:  #{registration_time}\n"
+      info << "\t\#logout time: #{login_invalidation_time}\n"
+      info
+    end
+
     private def username=(new_username)
       @username = new_username.dup
     end
@@ -46,16 +58,16 @@ module ProfileManager
       @password = new_password.dup
     end
 
-    private def registration_time=(new_registration_time)
-      @registration_time = new_registration_time.dup
+    def login_invalidation_time=(new_login_invalidation_time)
+      @login_invalidation_time = new_login_invalidation_time.dup
     end
 
     private def login_invalidation_time
       @login_invalidation_time.dup
     end
 
-    private def login_invalidation_time=(new_login_invalidation_time)
-      @login_invalidation_time = new_login_invalidation_time.dup
+    private def registration_time=(new_registration_time)
+      @registration_time = new_registration_time.dup
     end
   end
 
@@ -69,6 +81,8 @@ module ProfileManager
   end
 
   class Application
+    require 'securerandom'
+
     USERNAME_MIN_LENGTH = 8
     USERNAME_MATCH_PATTERN = /\A[a-z]+[a-z\d]+\Z/i
     PASSWORD_MIN_LENGTH = 8
@@ -94,7 +108,7 @@ module ProfileManager
     end
 
     private def username_exists?(new_username)
-      users.any?{ |username, _| username == new_username }
+      users.has_key?(new_username)
     end
 
     def username_valid?(new_username)
@@ -146,6 +160,70 @@ module ProfileManager
       success
     end
 
+    def login_data_valid?(username, password)
+      username_exists?(username) &&
+      users[username].password == password
+    end
+
+    def renew_login_session(username, current_session_id)
+      # delete current_session_id entry from current connections
+      # IF it exists, since that one is now invalidated
+      if current_connections.has_key?(current_session_id)
+        current_connections.delete(current_session_id)
+      end
+
+      # extend login expiration date
+      user = users[username]
+      user.login_invalidation_time = Time.now + MAX_LOGIN_TIME_IN_SECONDS
+
+      # generate new session and and it to the current connections
+      new_session_id = generate_unique_session_id
+      current_connections[new_session_id] = user
+
+      new_session_id
+    end
+
+    def logout(session_id)
+      # session id assumed to be logged in
+      if current_connections.has_key?(session_id)
+        user = current_connections.delete(session_id)
+        user.login_invalidation_time = TIME_EXPIRED
+        true
+      else
+        false
+      end
+    end
+
+    def unregister(session_id)
+      # session id assumed to be logged in
+      if current_connections.has_key?(session_id)
+        user = current_connections.delete(session_id)
+        users.delete(user.username)
+        true
+      else
+        false
+      end
+    end
+
+    def connections_and_users_description_string
+      # !!! ??? remove
+      info = Array.new
+
+      info << "Current connections"
+      info << "-------------------"
+      current_connections.each do |session_id, user|
+        info << "#{session_id}: #{user.username}"
+      end
+
+      info << "\n       Users       "
+      info << "-------------------"
+      users.each do |username, user_info|
+        info << "#{username}:\n"
+        info << user_info.to_s
+      end
+      info.join("\n")
+    end
+
     private def latest_error_string=(new_error_string)
       @error_string = new_error_string.dup
     end
@@ -156,6 +234,18 @@ module ProfileManager
 
     private def current_connections
       @current_connections
+    end
+
+    private def generate_unique_session_id
+      unique_session_id = nil
+
+      loop do
+        unique_session_id = SecureRandom.uuid
+
+        break unless current_connections.has_key?(unique_session_id)
+      end
+
+      unique_session_id
     end
   end
 

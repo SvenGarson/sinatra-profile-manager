@@ -1,0 +1,9 @@
+<h3><%= @confirmation_message %></h3>
+
+<form action="<%= @confirmation_route %>" method="post">
+    <input type="submit" name="<%= @key_confirm %>" value="Yes" />
+</form>
+
+<form action="<%= @confirmation_route %>" method="post">
+    <input type="submit" name="<%= @key_confirm %>" value="No" />
+</form>

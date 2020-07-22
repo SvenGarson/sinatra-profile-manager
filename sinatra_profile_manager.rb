@@ -38,6 +38,25 @@ class SinatraProfileManager < Sinatra::Base
       params.has_key?(@key_register_password)
     end
 
+    def login_requirements_met?
+      params.has_key?(@key_login_username) &&
+      params.has_key?(@key_login_password)
+    end
+
+    def confirmation_requirements_met?
+      selected_action = params[:action]
+      %w(logout unregister).include?(selected_action)
+    end
+
+    def logout_requirements_met?
+      choice = params[@key_confirm]
+      !choice.nil? && %w(Yes No).include?(choice)
+    end
+
+    def unregister_requirements_met?
+      logout_requirements_met?
+    end
+
     def set_session_error_message(error_message)
       session[KEY_ERROR_MESSAGE] = error_message
     end
@@ -69,6 +88,7 @@ class SinatraProfileManager < Sinatra::Base
     @key_login_password = ProfileManager::KEY_ERB_LOGIN_PASSWORD
     @key_register_username = ProfileManager::KEY_ERB_REGISTER_USERNAME
     @key_register_password = ProfileManager::KEY_ERB_REGISTER_PASSWORD
+    @key_confirm = ProfileManager::KEY_ERB_CONFIRM
   end
 
   get '/' do
@@ -104,52 +124,42 @@ class SinatraProfileManager < Sinatra::Base
   end
 
   post '/login' do
-    erb(:login)
-=begin
-    session_id = session[:session_id]
-    if app.session_id_logged_in?(session_id)
-      erb(:profile)
-    else
-      username = ...
-      hashed_password = ...
-  
-      if app.login_data_valid?(username, hashed_password)
-        
-        new_session_id = app.renew_login_validity(username, session_id)
-        if new_session_id
-          set_session_success_message('Login success. Valid until XYZ.')
-          session[:SESSION_ID] = new_session_id
-          erb(:profile)
-        else
-          set_session_error_message('Login failed ...')
-          erb(:login)
-        end
+    redirect('/register') unless login_requirements_met?
+
+    username = params[@key_login_username]
+    password = params[@key_login_password]
+
+    if profile_manager.login_data_valid?(username, password)
+      new_session_id = profile_manager.renew_login_session(username, cookie_session_id)
+
+      if new_session_id
+        set_session_success_message("You are now logged in as #{username}.")
+        session[ProfileManager::KEY_SESSION_ID] = new_session_id
+        redirect("profile/#{username}")
       else
-        # login data invalid
-        set_session_error_message("Login data invalid. Try again.")
+        set_session_error_message("Login failed, please try again later :(")
         erb(:login)
       end
+    else
+      set_session_error_message("There is a problem with the username and/or password. Make sure you are registered!")
+      erb(:login)
     end
-=end
   end
 
   post '/logout' do
-    erb(:profile)
-=begin    
-    session_id = session[:session_id]
+    redirect('/') unless logout_requirements_met?
 
-    choice = params[:confirmation_choice]
-    if choice == 'true'
-      logout_success = app.logout(session_id)
+    choice = params[@key_confirm].downcase
 
-      # When logout expires in this case before the action finished
-      # it is not a problem because the end result is the same.
-      set_session_success_message(You are now logged out!)
-      erb(:login)
-    else
-      erb(:profile)
+    if choice == 'yes' && profile_manager.session_id_logged_in?(cookie_session_id)
+        logout_successful = profile_manager.logout(cookie_session_id)
+
+        if logout_successful
+          set_session_success_message("You have been logged out.")
+        end
     end
-=end
+
+    redirect('/')
   end
 
   get '/register' do
@@ -188,69 +198,57 @@ class SinatraProfileManager < Sinatra::Base
   end
 
   post '/unregister' do
-    erb(:profile)
-=begin
-    ??? What is user logged out at this point ???
+    redirect('/') unless unregister_requirements_met?
 
-    session_id = session[:session_id]
+    choice = params[@key_confirm].downcase
 
-    choice = params[:confirmation_choice]
-    if choice == 'true'
-      unregister_success = app.unregister(session_id)
+    
+    if choice == 'yes' && profile_manager.session_id_logged_in?(cookie_session_id)
+      unregistering_successful = profile_manager.unregister(cookie_session_id)
 
-      if(unregister_success)      
-        set_session_success_message(Your account has been deleted!)
-        redirect('/')
+      if unregistering_successful
+        set_session_success_message("Your account has been fully deleted.")
       else
-        set_session_error_message(There was a problem deleting your account. Please login in and try again!)
-        erb(:login)
-    else
-      erb(:profile)
+        set_session_error_message("There was a problem deleting your account. Please try again.")
+      end
     end
-=end
+
+    redirect('/')
   end
 
   get '/confirm/:action' do
-=begin
 
-    # redirect if action not supported or none defined
+    redirect('/') unless confirmation_requirements_met?
+
     action = params[:action]
-    if !['logout', 'unregister', nil].include?
-      set_session_error_message('Action #action undefined.')
-      redirect('/')
-    end
 
-    # define message to confirm based on action and
-    # define where the confirmation is routed to
+    # define confirmation message and route based on
+    # the chosen url action
     confirmation_message = nil
     confirmation_route = nil
 
     case action
-    when logout
-      confirmation_message = 'You sure to ...'
+    when 'logout'
+      confirmation_message = 'Do you really want to log out?'
       confirmation_route = '/logout'
-    when unregister
-      confirmation_message = 'You sure to ...'
+    when 'unregister'
+      confirmation_message = 'Do you really want to unregister?'
       confirmation_route = '/unregister'
     end
 
-    # make variables visible to template
+    # return confirmation page
     @confirmation_message = confirmation_message
     @confirmation_route = confirmation_route
-
-    # confirmation sets parameters confirmation_choice
-
     erb(:confirm)
-  
-=end
-    erb(:confirm)
+  end
+
+  get '/debug' do
+    headers['Content-Type'] = 'text/plain'
+    profile_manager.connections_and_users_description_string
   end
 
   not_found do
     erb(:not_found)
-=begin
-  
-=end
   end
 
 end
